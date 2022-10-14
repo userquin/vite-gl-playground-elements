@@ -1,9 +1,11 @@
 import { defineConfig } from 'vite'
 import { promises as fs } from 'fs'
 
+const sandboxDir = '/sandbox/'
 const virtualTSWS = `\0playground-typescript-worker.js`
-const virtualWS = `/sandbox/playground-service-worker.js`
-const virtualPage = `/sandbox/playground-service-worker-proxy.html`
+const virtualSandbox = `\0virtual-sanbox.js`
+const pgSw = `${sandboxDir}playground-service-worker.js`
+const pgSWProxyHtml = `${sandboxDir}playground-service-worker-proxy.html`
 
 let outputDir = 'dist'
 
@@ -17,14 +19,14 @@ export default defineConfig({
                 const uri = req.url
                 let data: [string, string] | undefined
 
-                if (uri === virtualWS) {
+                if (uri === pgSw) {
                     data = [
                         "application/javascript",
                         await fs.readFile('node_modules/playground-elements/playground-service-worker.js', 'utf-8')
                     ]
                 }
 
-                if (uri === virtualPage) {
+                if (uri === pgSWProxyHtml) {
                     data = [
                         "text/html",
                         await fs.readFile('node_modules/playground-elements/playground-service-worker-proxy.html', 'utf-8')
@@ -55,6 +57,22 @@ export default defineConfig({
           }
       },
       {
+          name: "playground-elements-plugin:virtual",
+          enforce: "pre",
+            resolveId(id) {
+              if (id === 'virtual:pg-sandbox')
+                return virtualSandbox
+
+              return undefined
+            },
+            load(id) {
+              if (id === virtualSandbox)
+                return `export default '${sandboxDir}'`
+
+              return undefined
+            }
+      },
+      {
           name: "playground-elements-plugin:build",
           enforce: "post",
           apply: 'build',
@@ -64,9 +82,9 @@ export default defineConfig({
           async closeBundle() {
               await fs.mkdir(`${outputDir}/sandbox`, { recursive: true })
               let code = await fs.readFile('node_modules/playground-elements/playground-service-worker.js', 'utf-8')
-              await fs.writeFile(`${outputDir}/sandbox/playground-service-worker.js`, code, 'utf-8')
+              await fs.writeFile(`${outputDir}${sandboxDir}playground-service-worker.js`, code, 'utf-8')
               code = await fs.readFile('node_modules/playground-elements/playground-service-worker-proxy.html', 'utf-8')
-              await fs.writeFile(`${outputDir}/sandbox/playground-service-worker-proxy.html`, code, 'utf-8')
+              await fs.writeFile(`${outputDir}${sandboxDir}playground-service-worker-proxy.html`, code, 'utf-8')
           }
       },
   ]
